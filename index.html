@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Sitemap to RSS Converter</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; line-height: 1.6; }
+        .card { background: #f9f9f9; padding: 20px; border-radius: 8px; border: 1px solid #ddd; }
+        input, button { margin: 10px 0; padding: 10px; width: 100%; box-sizing: border-box; }
+        button { background-color: #0073aa; color: white; border: none; cursor: pointer; font-size: 16px; border-radius: 4px; }
+        button:hover { background-color: #005177; }
+        #status { font-weight: bold; margin-top: 15px; color: #333; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Sitemap to RSS Converter</h2>
+        <p>Select your <code>sitemap.xml</code> file to convert it into a WordPress-ready RSS feed right inside your browser.</p>
+        
+        <label for="sitemapFile"><strong>Choose Sitemap File:</strong></label>
+        <input type="file" id="sitemapFile" accept=".xml">
+        
+        <button onclick="convertSitemap()">Convert & Download RSS</button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+    function convertSitemap() {
+        const fileInput = document.getElementById('sitemapFile');
+        const status = document.getElementById('status');
+        
+        if (!fileInput.files.length) {
+            status.textContent = "Please select a sitemap.xml file first.";
+            status.style.color = "#d9534f";
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(e.target.result, "text/xml");
+                
+                if (xmlDoc.getElementsByTagName("parsererror").length > 0) {
+                    status.textContent = "Error parsing XML file. Make sure it is a valid sitemap.";
+                    status.style.color = "#d9534f";
+                    return;
+                }
+                
+                const urls = xmlDoc.getElementsByTagName("url");
+                if (urls.length === 0) {
+                    status.textContent = "No <url> elements found in this sitemap file.";
+                    status.style.color = "#d9534f";
+                    return;
+                }
+                
+                // Build RSS 2.0 Structure
+                let rssContent = '<?xml version="1.0" encoding="UTF-8"?>\n';
+                rssContent += '<rss version="2.0">\n  <channel>\n';
+                rssContent += '    <title>WordPress Converted Feed</title>\n';
+                rssContent += '    <link>https://example.com</link>\n';
+                rssContent += '    <description>RSS feed converted from sitemap.xml</description>\n';
+                rssContent += '    <language>en-US</language>\n';
+                
+                for (let i = 0; i < urls.length; i++) {
+                    const loc = urls[i].getElementsByTagName("loc")[0];
+                    const lastmod = urls[i].getElementsByTagName("lastmod")[0];
+                    
+                    if (loc) {
+                        const locUrl = loc.textContent.trim();
+                        const parts = locUrl.split('/').filter(Boolean);
+                        let slug = parts[parts.length - 1] || "Home";
+                        let cleanTitle = slug.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        
+                        rssContent += '    <item>\n';
+                        rssContent += `      <title><![CDATA[${cleanTitle}]]></title>\n`;
+                        rssContent += `      <link>${locUrl}</link>\n`;
+                        rssContent += `      <guid>${locUrl}</guid>\n`;
+                        
+                        if (lastmod) {
+                            const dateVal = new Date(lastmod.textContent.trim());
+                            if (!isNaN(dateVal)) {
+                                rssContent += `      <pubDate>${dateVal.toUTCString()}</pubDate>\n`;
+                            }
+                        }
+                        
+                        rssContent += '    </item>\n';
+                    }
+                }
+                
+                rssContent += '  </channel>\n</rss>';
+                
+                // Trigger automated download
+                const blob = new Blob([rssContent], { type: 'application/rss+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'wordpress_rss.xml';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                status.textContent = `Success! Converted ${urls.length} URLs. 'wordpress_rss.xml' has been downloaded.`;
+                status.style.color = "#5cb85c";
+            } catch (err) {
+                status.textContent = "An error occurred: " + err.message;
+                status.style.color = "#d9534f";
+            }
+        };
+        
+        reader.readAsText(file);
+    }
+    </script>
+</body>
+</html>
